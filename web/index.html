@@ -15,10 +15,10 @@
     --ink:#f4f1e8;
     --muted:#8b8f9c;
     --line:#2a2e38;
-    --amber:#ffb000;          /* color clásico de cartel de subte */
+    --amber:#ffb000;
     --green:#27d07c;
     --red:#ff4d4d;
-    /* colores oficiales de las líneas */
+
     --LineaA:#1ca4d8;
     --LineaB:#e2231a;
     --LineaC:#173f8a;
@@ -44,7 +44,6 @@
     justify-content:center;
     -webkit-font-smoothing:antialiased;
   }
-  /* textura de grano sutil */
   body::before{
     content:"";
     position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;
@@ -53,7 +52,6 @@
 
   .wrap{width:min(880px,100%);position:relative;z-index:1}
 
-  /* ---------- Encabezado ---------- */
   header{
     display:flex;align-items:flex-end;justify-content:space-between;
     gap:16px;flex-wrap:wrap;margin-bottom:28px;
@@ -86,7 +84,6 @@
 
   /* ---------- Selector de líneas ---------- */
   .lines{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-  .line-chip{
     --c:var(--muted);
     appearance:none;cursor:pointer;
     width:46px;height:46px;border-radius:50%;
@@ -106,7 +103,6 @@
   }
   .line-chip.h[aria-pressed="true"]{color:#222}
 
-  /* ---------- Controles ---------- */
   .controls{
     display:grid;
     grid-template-columns:1fr 1fr auto;
@@ -136,7 +132,6 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   .dot{width:14px;height:14px;border:3px solid #1a1205;border-top-color:transparent;border-radius:50%;display:inline-block}
 
-  /* ---------- Cartel ---------- */
   .board{
     background:linear-gradient(180deg,var(--panel-2),var(--panel));
     border:1px solid var(--line);
@@ -264,7 +259,6 @@
 </div>
 
 <script>
-// ====== Config ======
 const CLIENT_ID     = "e82491b995494b9abb5a571f59cf5c05";
 const CLIENT_SECRET = "26F8f2c490754E7A8765A7e1EBA5b31c";
 const API = "https://apitransporte.buenosaires.gob.ar/subtes/forecastGTFS";
@@ -275,26 +269,23 @@ const LINEAS = [
   {id:"LineaD", letra:"D"}, {id:"LineaE", letra:"E"}, {id:"LineaH", letra:"H"},
 ];
 
-// ====== Estado ======
+
 let lineaSel  = "LineaD";
 let estacionSel = "";
 let dirSel = 1;
-let rawData = null;        // último JSON crudo
-let baseForecast = 0;      // Header.timestamp de la respuesta (referencia fija)
-let refLocalMs = 0;        // performance.now() al recibir la respuesta
+let rawData = null;
+let baseForecast = 0;
+let refLocalMs = 0;
 let timer = null;
 
-// Tiempo de referencia "ahora" = timestamp del servidor + segundos transcurridos localmente.
 function refAhora(){ return baseForecast + (performance.now()-refLocalMs)/1000; }
 
-// ====== DOM ======
 const $ = s => document.querySelector(s);
 const linesEl = $("#lines"), estSel = $("#estacion"), dirSelEl = $("#direccion");
 const contentEl = $("#content"), pillEl = $("#pill"), whereName = $("#whereName"),
       dirTag = $("#dirTag"), logo = $("#logo"), statusEl = $("#status"),
       btn = $("#refresh"), btnDot = btn.querySelector(".dot"), btnTxt = $("#btnTxt");
 
-// ---- Chips de líneas ----
 LINEAS.forEach(l => {
   const b = document.createElement("button");
   b.className = "line-chip" + (l.letra === "H" ? " h" : "");
@@ -316,17 +307,14 @@ function aplicarColor(){
   pillEl.className = "pill" + (letra==="H"?" h":"");
 }
 
-// ---- Reloj ----
 setInterval(()=>{
   $("#clock").innerHTML = "<b>"+new Date().toLocaleTimeString("es-AR")+"</b>";
 }, 1000);
 
-// ---- Selectores ----
 dirSelEl.onchange = () => { dirSel = +dirSelEl.value; poblarEstaciones(); render(); };
 estSel.onchange   = () => { estacionSel = estSel.value; render(); };
 btn.onclick = () => cargar();
 
-// ====== Fetch ======
 async function cargar(){
   setLoading(true);
   statusEl.textContent = "consultando…";
@@ -353,7 +341,6 @@ function setLoading(on){
   btnTxt.textContent = on ? "Cargando" : "Actualizar";
 }
 
-// ====== Trenes para la selección actual ======
 function trenesDe(linea, dir, estacion){
   if(!rawData?.Entity) return [];
   const out = [];
@@ -371,7 +358,6 @@ function trenesDe(linea, dir, estacion){
   return out.sort((a,b)=>a-b);
 }
 
-// Rellena el dropdown con las estaciones presentes para línea+dirección
 function poblarEstaciones(){
   if(!rawData?.Entity){ estSel.innerHTML="<option>Sin datos</option>"; return; }
   const set = new Set();
@@ -386,7 +372,6 @@ function poblarEstaciones(){
   estSel.innerHTML = arr.map(s=>`<option ${s===estacionSel?"selected":""}>${s}</option>`).join("");
 }
 
-// ====== Render ======
 function fmt(seg){
   if(seg<=0) return {now:true, big:"YA", small:"en andén"};
   const m = Math.floor(seg/60), s = Math.floor(seg%60);
@@ -423,13 +408,11 @@ function mostrarError(e){
   </div>`;
 }
 
-// ====== Countdown local (refresca cada segundo sin pegarle a la API) ======
 setInterval(()=>{ if(rawData) render(); }, 1000);
 
-// ====== Auto-refresh ======
 function loop(){ clearInterval(timer); timer = setInterval(cargar, REFRESH_MS); }
 
-// ====== Init ======
+
 aplicarColor();
 cargar();
 loop();

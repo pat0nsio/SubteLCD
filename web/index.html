@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SUBTE · Próximos trenes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600;700&family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0e12;
+    --panel:#15171d;
+    --panel-2:#1c1f27;
+    --ink:#f4f1e8;
+    --muted:#8b8f9c;
+    --line:#2a2e38;
+    --amber:#ffb000;          /* color clásico de cartel de subte */
+    --green:#27d07c;
+    --red:#ff4d4d;
+    /* colores oficiales de las líneas */
+    --LineaA:#1ca4d8;
+    --LineaB:#e2231a;
+    --LineaC:#173f8a;
+    --LineaD:#00853f;
+    --LineaE:#5c2d83;
+    --LineaH:#ffd200;
+    --accent:var(--amber);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+
+  html,body{height:100%}
+  body{
+    font-family:'Archivo',sans-serif;
+    background:
+      radial-gradient(900px 600px at 80% -10%, rgba(255,176,0,.07), transparent 60%),
+      radial-gradient(700px 500px at -10% 110%, rgba(28,164,216,.06), transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    min-height:100vh;
+    padding:clamp(16px,4vw,48px);
+    display:flex;
+    justify-content:center;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* textura de grano sutil */
+  body::before{
+    content:"";
+    position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.035;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap{width:min(880px,100%);position:relative;z-index:1}
+
+  /* ---------- Encabezado ---------- */
+  header{
+    display:flex;align-items:flex-end;justify-content:space-between;
+    gap:16px;flex-wrap:wrap;margin-bottom:28px;
+  }
+  .brand{display:flex;align-items:center;gap:14px}
+  .logo{
+    width:54px;height:54px;border-radius:14px;
+    background:var(--accent);color:#1a1205;
+    display:grid;place-items:center;
+    font-family:'Archivo Black';font-size:30px;
+    box-shadow:0 0 0 4px rgba(255,176,0,.12), 0 10px 30px rgba(255,176,0,.18);
+    transition:background .4s ease, box-shadow .4s ease;
+  }
+  h1{
+    font-family:'Archivo Black';
+    font-size:clamp(26px,5vw,40px);
+    letter-spacing:-.02em;line-height:.95;
+  }
+  .sub{color:var(--muted);font-size:13px;letter-spacing:.18em;text-transform:uppercase;margin-top:4px}
+
+  .clock{
+    font-family:'IBM Plex Mono';font-weight:600;
+    font-size:clamp(15px,3vw,20px);
+    color:var(--muted);
+    border:1px solid var(--line);
+    padding:8px 14px;border-radius:10px;
+    background:rgba(255,255,255,.02);
+  }
+  .clock b{color:var(--ink)}
+
+  /* ---------- Selector de líneas ---------- */
+  .lines{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .line-chip{
+    --c:var(--muted);
+    appearance:none;cursor:pointer;
+    width:46px;height:46px;border-radius:50%;
+    border:2px solid var(--line);
+    background:var(--panel);
+    color:var(--ink);
+    font-family:'Archivo Black';font-size:20px;
+    display:grid;place-items:center;
+    transition:transform .15s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .line-chip:hover{transform:translateY(-3px) scale(1.04)}
+  .line-chip[aria-pressed="true"]{
+    border-color:var(--c);
+    background:var(--c);
+    color:#fff;
+    box-shadow:0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent), 0 8px 22px color-mix(in srgb, var(--c) 35%, transparent);
+  }
+  .line-chip.h[aria-pressed="true"]{color:#222}
+
+  /* ---------- Controles ---------- */
+  .controls{
+    display:grid;
+    grid-template-columns:1fr 1fr auto;
+    gap:12px;margin-bottom:22px;
+  }
+  @media(max-width:620px){.controls{grid-template-columns:1fr}}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  select,.btn{
+    font-family:'Archivo';font-weight:600;font-size:15px;
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--line);border-radius:10px;
+    padding:12px 14px;cursor:pointer;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  select:hover{border-color:var(--accent)}
+  select:focus{outline:none;border-color:var(--accent)}
+  .btn{
+    align-self:flex-end;
+    background:var(--accent);color:#1a1205;border:none;font-weight:800;
+    letter-spacing:.04em;text-transform:uppercase;
+    display:flex;align-items:center;gap:8px;
+  }
+  .btn:hover{filter:brightness(1.08)}
+  .btn:active{transform:translateY(1px)}
+  .btn.loading .dot{animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .dot{width:14px;height:14px;border:3px solid #1a1205;border-top-color:transparent;border-radius:50%;display:inline-block}
+
+  /* ---------- Cartel ---------- */
+  .board{
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 30px 60px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .board-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;border-bottom:1px solid var(--line);
+    background:rgba(0,0,0,.18);
+  }
+  .board-head .where{display:flex;align-items:center;gap:12px;min-width:0}
+  .pill{
+    --c:var(--accent);
+    flex:none;width:34px;height:34px;border-radius:50%;
+    background:var(--c);color:#fff;
+    font-family:'Archivo Black';font-size:16px;
+    display:grid;place-items:center;
+  }
+  .pill.h{color:#222}
+  .station-name{
+    font-family:'Archivo Black';font-size:clamp(18px,3.4vw,26px);
+    letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .dir-tag{font-size:12px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+
+  .rows{padding:6px 0}
+  .row{
+    display:grid;grid-template-columns:48px 1fr auto;
+    align-items:center;gap:16px;
+    padding:18px 22px;
+    border-bottom:1px solid rgba(255,255,255,.04);
+    animation:slideIn .45s cubic-bezier(.2,.7,.2,1) backwards;
+  }
+  .row:last-child{border-bottom:none}
+  .row .idx{
+    font-family:'IBM Plex Mono';font-weight:700;font-size:15px;
+    color:var(--muted);
+    border:1px solid var(--line);border-radius:8px;
+    width:34px;height:34px;display:grid;place-items:center;
+  }
+  .row .label{font-weight:600;color:var(--muted);font-size:14px;letter-spacing:.04em}
+  .row .label b{display:block;color:var(--ink);font-size:16px;letter-spacing:0;font-weight:700}
+  .eta{
+    font-family:'IBM Plex Mono';font-weight:700;
+    font-size:clamp(26px,6vw,40px);
+    color:var(--amber);
+    text-shadow:0 0 18px rgba(255,176,0,.35);
+    display:flex;align-items:baseline;gap:6px;
+    font-variant-numeric:tabular-nums;
+  }
+  .eta small{font-size:14px;color:var(--muted);text-shadow:none;font-weight:500}
+  .eta.now{color:var(--green);text-shadow:0 0 18px rgba(39,208,124,.4);animation:blink 1.1s steps(2,start) infinite}
+  @keyframes blink{50%{opacity:.4}}
+
+  @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  .empty,.error{
+    padding:46px 24px;text-align:center;color:var(--muted);
+    font-family:'IBM Plex Mono';font-size:15px;line-height:1.6;
+  }
+  .empty .big{font-family:'Archivo Black';font-size:22px;color:var(--ink);margin-bottom:8px}
+  .error{color:var(--red)}
+  .error a{color:var(--accent)}
+
+  footer{
+    margin-top:18px;text-align:center;
+    color:var(--muted);font-size:12px;letter-spacing:.04em;
+  }
+  footer .live{color:var(--green)}
+  .live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px;animation:blink 1.4s infinite}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo" id="logo">S</div>
+      <div>
+        <h1>PRÓXIMOS TRENES</h1>
+        <div class="sub">Red de Subte · Buenos Aires</div>
+      </div>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+
+  <div class="lines" id="lines"></div>
+
+  <div class="controls">
+    <div class="field">
+      <label for="estacion">Estación</label>
+      <select id="estacion"><option>Cargá una línea…</option></select>
+    </div>
+    <div class="field">
+      <label for="direccion">Sentido</label>
+      <select id="direccion">
+        <option value="0">Sentido 0</option>
+        <option value="1" selected>Sentido 1</option>
+      </select>
+    </div>
+    <button class="btn" id="refresh"><span class="dot" style="display:none"></span><span id="btnTxt">Actualizar</span></button>
+  </div>
+
+  <div class="board">
+    <div class="board-head">
+      <div class="where">
+        <div class="pill" id="pill">D</div>
+        <div style="min-width:0">
+          <div class="station-name" id="whereName">Elegí una estación</div>
+          <div class="dir-tag" id="dirTag">—</div>
+        </div>
+      </div>
+    </div>
+    <div id="content">
+      <div class="empty">
+        <div class="big">Bienvenido</div>
+        Elegí una línea arriba para ver los próximos trenes.
+      </div>
+    </div>
+  </div>
+
+  <footer id="footer">Datos: API Transporte GCBA · <span id="status">en espera</span></footer>
+</div>
+
+<script>
+// ====== Config ======
+const CLIENT_ID     = "e82491b995494b9abb5a571f59cf5c05";
+const CLIENT_SECRET = "26F8f2c490754E7A8765A7e1EBA5b31c";
+const API = "https://apitransporte.buenosaires.gob.ar/subtes/forecastGTFS";
+const REFRESH_MS = 30000;
+
+const LINEAS = [
+  {id:"LineaA", letra:"A"}, {id:"LineaB", letra:"B"}, {id:"LineaC", letra:"C"},
+  {id:"LineaD", letra:"D"}, {id:"LineaE", letra:"E"}, {id:"LineaH", letra:"H"},
+];
+
+// ====== Estado ======
+let lineaSel  = "LineaD";
+let estacionSel = "";
+let dirSel = 1;
+let rawData = null;        // último JSON crudo
+let baseForecast = 0;      // Header.timestamp de la respuesta (referencia fija)
+let refLocalMs = 0;        // performance.now() al recibir la respuesta
+let timer = null;
+
+// Tiempo de referencia "ahora" = timestamp del servidor + segundos transcurridos localmente.
+function refAhora(){ return baseForecast + (performance.now()-refLocalMs)/1000; }
+
+// ====== DOM ======
+const $ = s => document.querySelector(s);
+const linesEl = $("#lines"), estSel = $("#estacion"), dirSelEl = $("#direccion");
+const contentEl = $("#content"), pillEl = $("#pill"), whereName = $("#whereName"),
+      dirTag = $("#dirTag"), logo = $("#logo"), statusEl = $("#status"),
+      btn = $("#refresh"), btnDot = btn.querySelector(".dot"), btnTxt = $("#btnTxt");
+
+// ---- Chips de líneas ----
+LINEAS.forEach(l => {
+  const b = document.createElement("button");
+  b.className = "line-chip" + (l.letra === "H" ? " h" : "");
+  b.textContent = l.letra;
+  b.style.setProperty("--c", getComputedStyle(document.documentElement).getPropertyValue("--"+l.id));
+  b.setAttribute("aria-pressed", l.id === lineaSel);
+  b.onclick = () => { lineaSel = l.id; syncChips(); aplicarColor(); cargar(); };
+  linesEl.appendChild(b);
+});
+function syncChips(){
+  [...linesEl.children].forEach((c,i)=>c.setAttribute("aria-pressed", LINEAS[i].id===lineaSel));
+}
+function aplicarColor(){
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--"+lineaSel).trim();
+  const letra = LINEAS.find(l=>l.id===lineaSel).letra;
+  document.documentElement.style.setProperty("--accent", c);
+  logo.style.background = c; logo.textContent = letra; logo.style.color = letra==="H"?"#222":"#fff";
+  pillEl.style.background = c; pillEl.textContent = letra;
+  pillEl.className = "pill" + (letra==="H"?" h":"");
+}
+
+// ---- Reloj ----
+setInterval(()=>{
+  $("#clock").innerHTML = "<b>"+new Date().toLocaleTimeString("es-AR")+"</b>";
+}, 1000);
+
+// ---- Selectores ----
+dirSelEl.onchange = () => { dirSel = +dirSelEl.value; poblarEstaciones(); render(); };
+estSel.onchange   = () => { estacionSel = estSel.value; render(); };
+btn.onclick = () => cargar();
+
+// ====== Fetch ======
+async function cargar(){
+  setLoading(true);
+  statusEl.textContent = "consultando…";
+  try{
+    const url = `${API}?client_id=${CLIENT_ID}&client_secret=${CLIENT_SECRET}`;
+    const r = await fetch(url, {headers:{Accept:"application/json"}});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    rawData = await r.json();
+    baseForecast = rawData?.Header?.timestamp ?? (Date.now()/1000);
+    refLocalMs = performance.now();
+    statusEl.innerHTML = '<span class="live-dot"></span><span class="live">en vivo</span>';
+    poblarEstaciones();
+    render();
+  }catch(e){
+    mostrarError(e);
+    statusEl.textContent = "error";
+  }finally{
+    setLoading(false);
+  }
+}
+function setLoading(on){
+  btn.classList.toggle("loading", on);
+  btnDot.style.display = on ? "inline-block" : "none";
+  btnTxt.textContent = on ? "Cargando" : "Actualizar";
+}
+
+// ====== Trenes para la selección actual ======
+function trenesDe(linea, dir, estacion){
+  if(!rawData?.Entity) return [];
+  const out = [];
+  for(const t of rawData.Entity){
+    const L = t.Linea;
+    if(!L || L.Route_Id !== linea || L.Direction_ID !== dir) continue;
+    const ahora = refAhora();
+    for(const p of (L.Estaciones||[])){
+      if(estacion && !(p.stop_name||"").includes(estacion)) continue;
+      const seg = (p.arrival?.time ?? 0) - ahora;
+      if(seg > -30) out.push(seg);
+      if(estacion) break;
+    }
+  }
+  return out.sort((a,b)=>a-b);
+}
+
+// Rellena el dropdown con las estaciones presentes para línea+dirección
+function poblarEstaciones(){
+  if(!rawData?.Entity){ estSel.innerHTML="<option>Sin datos</option>"; return; }
+  const set = new Set();
+  for(const t of rawData.Entity){
+    const L = t.Linea;
+    if(!L || L.Route_Id !== lineaSel || L.Direction_ID !== dirSel) continue;
+    for(const p of (L.Estaciones||[])) if(p.stop_name) set.add(p.stop_name.trim());
+  }
+  const arr = [...set].sort((a,b)=>a.localeCompare(b,"es"));
+  if(arr.length===0){ estSel.innerHTML="<option>Sin estaciones</option>"; estacionSel=""; return; }
+  if(!arr.includes(estacionSel)) estacionSel = arr[0];
+  estSel.innerHTML = arr.map(s=>`<option ${s===estacionSel?"selected":""}>${s}</option>`).join("");
+}
+
+// ====== Render ======
+function fmt(seg){
+  if(seg<=0) return {now:true, big:"YA", small:"en andén"};
+  const m = Math.floor(seg/60), s = Math.floor(seg%60);
+  return {now:false, big:String(m), small:`min ${String(s).padStart(2,"0")}s`};
+}
+function render(){
+  const letra = LINEAS.find(l=>l.id===lineaSel).letra;
+  whereName.textContent = estacionSel || "—";
+  dirTag.textContent = `Línea ${letra} · Sentido ${dirSel}`;
+
+  const trenes = trenesDe(lineaSel, dirSel, estacionSel).slice(0,4);
+  if(trenes.length===0){
+    contentEl.innerHTML = `<div class="empty"><div class="big">Sin trenes próximos</div>
+      La API no reporta arribos para esta estación ahora mismo.</div>`;
+    return;
+  }
+  contentEl.innerHTML = `<div class="rows">${trenes.map((seg,i)=>{
+    const f = fmt(seg);
+    const etiqueta = i===0 ? "Próximo" : "Luego";
+    return `<div class="row" style="animation-delay:${i*70}ms">
+      <div class="idx">${i+1}</div>
+      <div class="label">${etiqueta}<b>Línea ${letra}</b></div>
+      <div class="eta ${f.now?"now":""}">${f.big}<small>${f.small}</small></div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function mostrarError(e){
+  contentEl.innerHTML = `<div class="error">
+    <div style="font-family:'Archivo Black';font-size:20px;margin-bottom:10px">No se pudo cargar</div>
+    ${e.message}<br><br>
+    Si es un error de <b>CORS</b>, el navegador bloquea la llamada directa a la API.<br>
+    Probá servir la página con un proxy local o usá el firmware del ESP32 (sin CORS).
+  </div>`;
+}
+
+// ====== Countdown local (refresca cada segundo sin pegarle a la API) ======
+setInterval(()=>{ if(rawData) render(); }, 1000);
+
+// ====== Auto-refresh ======
+function loop(){ clearInterval(timer); timer = setInterval(cargar, REFRESH_MS); }
+
+// ====== Init ======
+aplicarColor();
+cargar();
+loop();
+</script>
+</body>
+</html>

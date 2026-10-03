@@ -22,6 +22,9 @@ const char* TEXTO_SENTIDO      = "Catedral";   // Rótulo manual del sentido
 
 const unsigned long INTERVALO_CONSULTA_MS = 30000UL; // re-consulta a la API cada 30 s
 
+// Tiempo medio entre estaciones, para estimar paradas sin pronóstico. Calibrar mirando trenes reales.
+const long SEG_POR_ESTACION = 110;
+
 // ==========================================================
 //   LCD 2004 en paralelo (4 bits)
 // ==========================================================
@@ -44,7 +47,9 @@ const char* API_PATH = "/subtes/forecastGTFS";
 //   Estado global
 // ==========================================================
 const int MAX_CANDIDATOS = 8;
+const int MAX_ESTACIONES = 20;
 long  candidatos[MAX_CANDIDATOS];   // segundos restantes (ordenados) de la última consulta
+bool  candidatoEstimado[MAX_CANDIDATOS];
 int   numCandidatos = 0;
 bool  consultaValida = false;
 
@@ -72,6 +77,28 @@ String formatTiempo(long segundos) {
   long minutos = segundos / 60;
   long segs    = segundos % 60;
   return String(minutos) + " min " + String(segs) + " s";
+}
+
+// ----------------------------------------------------------
+//   Estimación de paradas sin pronóstico
+// ----------------------------------------------------------
+
+// La API rellena las paradas sin pronóstico con arrival ≈ Header.timestamp (0 o -1 s).
+bool esRelleno(long arrival, long ts) {
+  return arrival == 0 || labs(arrival - ts) <= 1;
+}
+
+// Estima la llegada a la parada k interpolando entre las paradas vecinas con dato real,
+// o extrapolando con SEG_POR_ESTACION si hay dato de un solo lado. 0 = el viaje no tiene datos.
+// ponytail: asume tramos de igual duración; usar tiempos por tramo del GTFS estático si hace falta precisión.
+long estimarLlegada(const long* t, int n, int k, long ts) {
+  int i = k - 1, j = k + 1;
+  while (i >= 0 && esRelleno(t[i], ts)) i--;
+  while (j < n && esRelleno(t[j], ts)) j++;
+  if (i >= 0 && j < n) return t[i] + (t[j] - t[i]) * (k - i) / (j - i);
+  if (i >= 0) return t[i] + (k - i) * SEG_POR_ESTACION;
+  if (j < n)  return t[j] - (j - k) * SEG_POR_ESTACION;
+  return 0;
 }
 
 // ----------------------------------------------------------
@@ -171,34 +198,45 @@ bool consultarAPI() {
     if (strcmp(routeId, OBJETIVO_LINEA) != 0) continue;
     if (direction != OBJETIVO_DIRECCION) continue;
 
+    long tiempos[MAX_ESTACIONES];
+    int n = 0, k = -1;
     for (JsonObject parada : linea["Estaciones"].as<JsonArray>()) {
+      if (n == MAX_ESTACIONES) break;
       const char* stopName = parada["stop_name"] | "";
+      if (k < 0 && strstr(stopName, OBJETIVO_ESTACION) != nullptr) k = n;
+      tiempos[n++] = parada["arrival"]["time"] | 0L;
+    }
+    if (k < 0) continue;
 
-      if (strstr(stopName, OBJETIVO_ESTACION) == nullptr) continue;
+    long arrival = tiempos[k];
+    bool estimado = esRelleno(arrival, horaReferencia);
+    if (estimado) arrival = estimarLlegada(tiempos, n, k, horaReferencia);
+    if (arrival == 0) continue;
 
-      long arrival = parada["arrival"]["time"] | 0L;
-      if (arrival == 0) break;
-
-      long restantes = arrival - horaReferencia;
-      if (restantes > -30 && numCandidatos < MAX_CANDIDATOS) {
-        candidatos[numCandidatos++] = restantes;
-      }
-      break;
+    long restantes = arrival - horaReferencia;
+    if (restantes > -30 && numCandidatos < MAX_CANDIDATOS) {
+      candidatos[numCandidatos] = restantes;
+      candidatoEstimado[numCandidatos] = estimado;
+      numCandidatos++;
     }
   }
 
   for (int i = 1; i < numCandidatos; i++) {
     long v = candidatos[i];
+    bool e = candidatoEstimado[i];
     int j = i - 1;
     while (j >= 0 && candidatos[j] > v) {
       candidatos[j + 1] = candidatos[j];
+      candidatoEstimado[j + 1] = candidatoEstimado[j];
       j--;
     }
     candidatos[j + 1] = v;
+    candidatoEstimado[j + 1] = e;
   }
 
   Serial.printf("Candidatos: %d  (heap libre: %u)\n", numCandidatos, ESP.getFreeHeap());
-  for (int i = 0; i < numCandidatos; i++) Serial.printf("  %ld s\n", candidatos[i]);
+  for (int i = 0; i < numCandidatos; i++)
+    Serial.printf("  %ld s%s\n", candidatos[i], candidatoEstimado[i] ? " (estimado)" : "");
 
   return true;
 }
@@ -225,12 +263,13 @@ void mostrarEnLCD(unsigned long transcurridoMs) {
 
   long offset = (long)(transcurridoMs / 1000UL);
 
+  // "~" marca tiempos estimados (la API no tenía pronóstico para la parada).
   long t1 = candidatos[0] - offset;
-  lcdLinea(2, String("1) ") + formatTiempo(t1));
+  lcdLinea(2, String("1) ") + (candidatoEstimado[0] ? "~" : "") + formatTiempo(t1));
 
   if (numCandidatos > 1) {
     long t2 = candidatos[1] - offset;
-    lcdLinea(3, String("2) ") + formatTiempo(t2));
+    lcdLinea(3, String("2) ") + (candidatoEstimado[1] ? "~" : "") + formatTiempo(t2));
   } else {
     lcdLinea(3, "");
   }
